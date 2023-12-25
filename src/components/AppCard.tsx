@@ -1,6 +1,10 @@
-import { Card, CardActionArea, CardContent, Typography } from "@mui/material";
-import Link from "next/link";
-
+import {
+  Card,
+  Link,
+  CardActionArea,
+  CardContent,
+  Typography,
+} from "@mui/material";
 
 interface Prop {
   title: string;
@@ -47,14 +51,18 @@ interface Prop {
 
 const AppCard = (prop: Prop) => {
   return (
-    <Link href={prop.path}>
+    <Link href={prop.path} underline="none">
       <Card variant="outlined">
         <CardActionArea>
           <CardContent>
-            <Typography gutterBottom variant="h5" component="div" sx={{ color: "#202124" }}>
+            <Typography variant="h5" component="div" sx={{ color: "#202124" }}>
               {prop.title}
             </Typography>
-            <Typography variant="body2" sx={{ color: "#5f6368" }}>
+            <Typography
+              variant="body2"
+              component="div"
+              sx={{ color: "#5f6368" }}
+            >
               {prop.desc}
             </Typography>
           </CardContent>
@@ -66,10 +74,9 @@ const AppCard = (prop: Prop) => {
             </Link>
           </CardActions> */}
         </CardActionArea>
-      </Card >
+      </Card>
     </Link>
-
-  )
-}
+  );
+};
 
 export default AppCard;
