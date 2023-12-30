@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Yree",
-  description: "Media Resolution",
+  description: "艺术家都是疯子",
 };
 
 export default function RootLayout({

@@ -3,44 +3,29 @@
 import useAutoScroll from "@/hooks/useAutoScroll";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 
-import { HotKeys } from "react-hotkeys";
 import {
-  AddOutlined as AddIcon,
+  ArrowBack as ArrowBackIcon,
   ClearOutlined as ClearOutlinedIcon,
-  HorizontalRuleOutlined as HorizontalRuleOutlinedIcon,
   ScheduleSendOutlined as ScheduleSendOutlinedIcon,
   SendOutlined as SendOutlinedIcon,
-  ArrowBack as ArrowBackIcon,
 } from "@mui/icons-material";
 import {
   Box,
   Button,
+  Card,
   Divider,
-  Unstable_Grid2 as Grid,
-  IconButton,
   InputBase,
   Paper,
+  Stack,
+  Typography,
 } from "@mui/material";
 import { nanoid } from "nanoid";
 import { useEffect, useRef, useState } from "react";
-import { Completion, Platform } from "./model";
-
-const initCompletions = (): Completion[] => {
-  return [
-    {
-      id: nanoid(),
-      role_name: roleName["user"],
-      role: "user",
-      content: "",
-      autoFocus: true,
-      mouseOver: false,
-    },
-  ];
-};
+import { ChatMessage, Platform } from "./model";
 
 const roleName = {
   user: "我",
-  assistant: "文仆",
+  assistant: "BT",
 };
 
 const platforms: Platform[] = [
@@ -50,11 +35,12 @@ const platforms: Platform[] = [
 
 export default function GPT() {
   // 对话列表
-  const [completions, setCompletions] = useState<Completion[]>(
-    initCompletions()
-  );
-  const [gptAnswerLoading, setGPTAnswerLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [platformIdx, setPlatformIdx] = useState(0);
+  const [inputMsg, setInputMsg] = useState<string>("");
+  const [answer, setAnswer] = useState<string>("");
+  const [gptAnswerLoading, setGPTAnswerLoading] = useState(false);
+
   const previewDomRef = useRef<any>();
   const [startScroll, stopScroll] = useAutoScroll(previewDomRef);
 
@@ -67,86 +53,53 @@ export default function GPT() {
     };
   }, [gptAnswerLoading]);
 
-  const newCompletions = () => {
-    setCompletions(initCompletions());
-  };
-
-  const addMessage = (): string => {
-    const lastRole =
-      completions.length === 0
-        ? "assistant"
-        : completions[completions.length - 1].role;
-    const role = reverseRole(lastRole);
-
+  const addMessage = (content: string, chatMessages: ChatMessage[]) => {
     const uniqueId = nanoid();
-    const newcomps = completions.map((c) => {
-      c.autoFocus = false;
-      return c;
+    setChatMessages((chatMessages) => {
+      return [
+        ...chatMessages,
+        {
+          id: uniqueId,
+          role_name: roleName["user"],
+          role: "user",
+          content: content,
+        },
+      ];
     });
-    setCompletions([
-      ...newcomps,
-      {
-        id: uniqueId,
-        role_name: roleName[role],
-        role: role,
-        content: "",
-        autoFocus: true,
-        mouseOver: false,
-      },
-    ]);
-
-    return uniqueId;
-  };
-
-  const delMessage = (id: string) => {
-    setCompletions(completions.filter((comp) => comp.id !== id));
-  };
-
-  const reverseRole = (role: string) => {
-    return role === "user" ? "assistant" : "user";
-  };
-
-  const changeRole = (id: string) => {
-    const nextComps = completions.map((comp) => {
-      if (comp.id === id) {
-        comp.role = reverseRole(comp.role);
-      }
-      return comp;
-    });
-    setCompletions(nextComps);
-  };
-
-  const changeContent = (id: string, content: string) => {
-    setCompletions((completions) => {
-      return completions.map((comp) => {
-        if (comp.id === id) {
-          comp.content = content;
-        }
-        return comp;
-      });
-    });
-  };
-
-  const mouseStatus = (id: string, status: boolean) => {
-    const nextComps = completions.map((comp) => {
-      if (comp.id === id) {
-        comp.mouseOver = status;
-      }
-      return comp;
-    });
-    setCompletions(nextComps);
   };
 
   const switchPlatform = () => {
     setPlatformIdx((platformIdx + 1) % platforms.length);
   };
 
-  const gptAnwser = () => {
+  const addMesage = () => {
+    setChatMessages([
+      ...chatMessages,
+      {
+        id: nanoid(),
+        role_name: roleName["user"],
+        role: "user",
+        content: inputMsg,
+      },
+      {
+        id: nanoid(),
+        role_name: roleName["assistant"],
+        role: "assistant",
+        content: "",
+      },
+    ]);
+    setInputMsg("");
+  };
+
+  const gptAnwser = (chatMessages: ChatMessage[]) => {
     setGPTAnswerLoading(true);
-    const messages = completions.map((comp) => {
-      return { role: comp.role, content: comp.content };
+    // addMessage(inputMsg);
+    const messages = chatMessages.map((cmsg) => {
+      return { role: cmsg.role, content: cmsg.content };
     });
-    const id = addMessage();
+    console.info(messages);
+    // setGPTAnswerLoading(false);
+    // return;
     let respString = "";
     fetchEventSource(
       "https://vam-api-dev.yilanvaas.cn/api/aitext/v1/chat/completions",
@@ -173,7 +126,15 @@ export default function GPT() {
             const jsonData = JSON.parse(event.data);
             if (jsonData.content !== undefined) {
               respString += jsonData.content;
-              changeContent(id, respString);
+              setAnswer(respString);
+
+              let lastMsg = chatMessages[chatMessages.length - 1];
+              if (lastMsg !== undefined && lastMsg.role !== "user") {
+                lastMsg.content = respString;
+                setChatMessages(chatMessages);
+              }
+
+              console.info(respString);
             }
           } catch (error) {
             console.log(error);
@@ -186,24 +147,16 @@ export default function GPT() {
     );
   };
 
-  const handleKeydown = (e: KeyboardEvent) => {
-    // let isMac = navigator.userAgentData.platform === "macOS";
-    let ctrled = e.ctrlKey || e.metaKey;
-    if (ctrled && e.code === "Enter") {
-      gptAnwser();
-    } else if (ctrled && e.code === "KeyJ") {
-      addMessage();
-    } else if (ctrled && e.code === "KeyH") {
-      newCompletions();
-    }
-  };
-
   useEffect(() => {
-    document.body.addEventListener("keydown", handleKeydown);
-    return () => {
-      document.body.removeEventListener("keydown", handleKeydown);
-    };
-  }, [completions]);
+    let lastMsg = chatMessages[chatMessages.length - 1];
+    if (lastMsg !== undefined && lastMsg.role !== "user") {
+      gptAnwser(chatMessages);
+    } else if (lastMsg !== undefined) {
+      console.log("render: <%s>: %s ", lastMsg.role, lastMsg.content);
+    } else {
+      console.log("render nothing");
+    }
+  }, [chatMessages]);
 
   return (
     <Box
@@ -213,112 +166,140 @@ export default function GPT() {
         display: "flex",
         flex: 1,
         flexGrow: 1,
-        justifyContent: "center",
         flexDirection: "column",
-        // padding: "15px",
-        backgroundColor: "#ffffff",
+        justifyContent: "center",
+        alignItems: "center",
+        // backgroundColor: "#ffffff",
       }}
     >
       <Paper
         ref={previewDomRef}
         sx={{
-          margin: "10px",
+          margin: "10px 10px 0 10px",
           padding: "5px",
+          width: "80%",
           height: "100%",
           flex: 1,
           // overflowY: "scroll",
-          position: "sticky",
+          // position: "sticky",
           bottom: 0,
           overflow: "auto",
         }}
         elevation={4}
       >
-        {completions.map((item: Completion) => (
+        {chatMessages.map((cmsg: ChatMessage) => (
           <Paper
             component="form"
-            variant={item.role === "user" ? "elevation" : "outlined"}
+            // variant={"outlined"}
             elevation={0}
             sx={{
-              p: "2px 4px",
               display: "flex",
-              alignItems: "flex-start",
+              // alignItems: "flex-start",
               // backgroundColor: item.role === "user" ? "red" : "#01f74388",
               margin: "5px",
             }}
-            key={item.id}
-            onMouseOver={() => {
-              mouseStatus(item.id, true);
-            }}
-            onMouseLeave={() => {
-              mouseStatus(item.id, false);
-            }}
+            key={cmsg.id}
           >
-            <Button
-              onClick={() => {
-                changeRole(item.id);
-              }}
+            <Stack
+              direction={cmsg.role === "user" ? "row-reverse" : "row"}
+              sx={{ width: "100%", alignItems: "flex-start" }}
+              justifyContent={"flex-start"}
+              spacing={2}
             >
-              {item.role_name}
-            </Button>
+              {/* <Avatar>{cmsg.role_name}</Avatar> */}
 
-            <InputBase
-              autoComplete="off"
-              value={item.content}
-              multiline
-              minRows={1}
-              // maxRows={20}
-              autoFocus={item.autoFocus}
-              sx={{
-                ml: 1,
-                color: item.role === "user" ? "#000044" : "#000044",
-                flex: 1,
-              }}
-              // placeholder={"输入或选择要操作的标签。" + currentName}
-              onChange={(event: any) => {
-                changeContent(item.id, event.target.value);
-              }}
-            />
-
-            <IconButton
-              color="error"
-              size="small"
-              // hidden={!item.mouseOver}
-              onClick={() => {
-                delMessage(item.id);
-              }}
-            >
-              <HorizontalRuleOutlinedIcon />
-            </IconButton>
+              <Stack
+                direction={cmsg.role === "user" ? "row-reverse" : "row"}
+                sx={{ width: "80%", alignItems: "flex-start" }}
+                justifyContent={"flex-start"}
+                spacing={2}
+                // sx={{
+                //   width: "80%",
+                //   flexDirection: item.role === "user" ? "row-reverse" : "row",
+                // }}
+              >
+                <Card
+                  variant="outlined"
+                  sx={{
+                    padding: "5px",
+                    backgroundColor:
+                      cmsg.role === "user" ? "#7bed9f" : "#ffffff",
+                    borderRadius:
+                      cmsg.role === "user" ? "5px 0 5px 5px" : "0 5px 5px 5px",
+                  }}
+                >
+                  <Typography whiteSpace={"pre-line"} variant="body1">
+                    {cmsg.content}
+                  </Typography>
+                </Card>
+              </Stack>
+            </Stack>
           </Paper>
         ))}
       </Paper>
 
       <Paper
-        sx={{ display: "flex", margin: "10px", padding: "5px" }}
         elevation={4}
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          margin: "10px",
+          padding: "5px",
+          width: "80%",
+          height: "200px",
+        }}
       >
-        <Button variant="text" size="small" href="/">
-          <ArrowBackIcon />
-        </Button>
+        <Paper sx={{ display: "flex", height: "30px" }} elevation={0}>
+          <Button variant="text" size="small" href="/">
+            <ArrowBackIcon />
+          </Button>
 
-        <Divider orientation="vertical" variant="middle" flexItem />
+          <Divider orientation="vertical" variant="middle" flexItem />
 
-        <Button onClick={gptAnwser} disabled={gptAnswerLoading}>
-          {gptAnswerLoading ? (
-            <ScheduleSendOutlinedIcon />
-          ) : (
-            <SendOutlinedIcon />
-          )}
-        </Button>
-        <Button onClick={addMessage}>
-          <AddIcon />
-        </Button>
-        <Button color="error" onClick={newCompletions}>
-          <ClearOutlinedIcon />
-        </Button>
-        <Button color="secondary" onClick={switchPlatform}>
-          {platforms[platformIdx].name}
-        </Button>
+          <Button
+            onClick={() => {
+              addMesage();
+            }}
+            disabled={gptAnswerLoading}
+          >
+            {gptAnswerLoading ? (
+              <ScheduleSendOutlinedIcon />
+            ) : (
+              <SendOutlinedIcon />
+            )}
+          </Button>
+          <Button
+            color="error"
+            onClick={() => {
+              setChatMessages([]);
+            }}
+          >
+            <ClearOutlinedIcon />
+          </Button>
+          <Button color="secondary" onClick={switchPlatform}>
+            {platforms[platformIdx].name}
+          </Button>
+        </Paper>
+
+        <Divider></Divider>
+
+        <InputBase
+          autoComplete="off"
+          multiline
+          value={inputMsg}
+          placeholder="你想要问什么。。。"
+          minRows={1}
+          maxRows={6}
+          sx={{ margin: "10px" }}
+          onChange={(event: any) => {
+            setInputMsg(event.target.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              addMesage();
+            }
+          }}
+        />
       </Paper>
     </Box>
   );
