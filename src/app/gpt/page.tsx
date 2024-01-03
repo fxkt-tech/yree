@@ -4,8 +4,9 @@ import useAutoScroll from "@/hooks/useAutoScroll";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 
 import {
-  ArrowBack as ArrowBackIcon,
+  ArrowBackOutlined as ArrowBackOutlinedIcon,
   ClearOutlined as ClearOutlinedIcon,
+  FastRewindOutlined as FastRewindOutlinedIcon,
   ScheduleSendOutlined as ScheduleSendOutlinedIcon,
   SendOutlined as SendOutlinedIcon,
 } from "@mui/icons-material";
@@ -89,6 +90,15 @@ export default function GPT() {
       },
     ]);
     setInputMsg("");
+  };
+
+  const backOff = () => {
+    if (chatMessages.length === 0) {
+      return;
+    }
+
+    setInputMsg(chatMessages[0].content);
+    setChatMessages([]);
   };
 
   const gptAnwser = (chatMessages: ChatMessage[]) => {
@@ -223,12 +233,12 @@ export default function GPT() {
                   sx={{
                     padding: "5px",
                     backgroundColor:
-                      cmsg.role === "user" ? "#7bed9f" : "#ffffff",
+                      cmsg.role === "user" ? "#7bed9f" : "#eeeeee",
                     borderRadius:
                       cmsg.role === "user" ? "5px 0 5px 5px" : "0 5px 5px 5px",
                   }}
                 >
-                  <Typography whiteSpace={"pre-line"} variant="body1">
+                  <Typography whiteSpace={"pre-wrap"} variant="body2">
                     {cmsg.content}
                   </Typography>
                 </Card>
@@ -251,7 +261,13 @@ export default function GPT() {
       >
         <Paper sx={{ display: "flex", height: "30px" }} elevation={0}>
           <Button variant="text" size="small" href="/">
-            <ArrowBackIcon />
+            <ArrowBackOutlinedIcon />
+          </Button>
+
+          <Divider orientation="vertical" variant="middle" flexItem />
+
+          <Button onClick={switchPlatform}>
+            {platforms[platformIdx].name}
           </Button>
 
           <Divider orientation="vertical" variant="middle" flexItem />
@@ -260,7 +276,7 @@ export default function GPT() {
             onClick={() => {
               addMesage();
             }}
-            disabled={gptAnswerLoading}
+            disabled={gptAnswerLoading || inputMsg === ""}
           >
             {gptAnswerLoading ? (
               <ScheduleSendOutlinedIcon />
@@ -269,15 +285,22 @@ export default function GPT() {
             )}
           </Button>
           <Button
+            disabled={chatMessages.length === 0 || gptAnswerLoading}
+            color="secondary"
+            onClick={() => {
+              backOff();
+            }}
+          >
+            <FastRewindOutlinedIcon />
+          </Button>
+          <Button
+            disabled={chatMessages.length === 0 || gptAnswerLoading}
             color="error"
             onClick={() => {
               setChatMessages([]);
             }}
           >
             <ClearOutlinedIcon />
-          </Button>
-          <Button color="secondary" onClick={switchPlatform}>
-            {platforms[platformIdx].name}
           </Button>
         </Paper>
 
@@ -290,6 +313,7 @@ export default function GPT() {
           placeholder="你想要问什么。。。"
           minRows={1}
           maxRows={6}
+          disabled={gptAnswerLoading}
           sx={{ margin: "10px" }}
           onChange={(event: any) => {
             setInputMsg(event.target.value);
